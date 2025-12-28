@@ -20,3 +20,13 @@ jobs:
             cd /opt/proxy
             git fetch origin
             git reset --hard origin/main
+            
+            # Install dependencies
+            npm install
+            
+            # Restart service
+            pm2 restart proxy || pm2 start server.js --name proxy
+          env:
+            ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+            ELEVEN_PROXY_SECRET: ${{ secrets.ELEVEN_PROXY_SECRET }}
+            PORT: 8088
