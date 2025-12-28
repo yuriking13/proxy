@@ -10,6 +10,10 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+          ELEVEN_PROXY_SECRET: ${{ secrets.ELEVEN_PROXY_SECRET }}
+          PORT: "8088"
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -20,13 +24,14 @@ jobs:
             cd /opt/proxy
             git fetch origin
             git reset --hard origin/main
-            
-            # Install dependencies
-            npm install
-            
-            # Restart service
-            pm2 restart proxy || pm2 start server.js --name proxy
-          env:
-            ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
-            ELEVEN_PROXY_SECRET: ${{ secrets.ELEVEN_PROXY_SECRET }}
-            PORT: 8088
+
+            npm install --omit=dev
+
+            # прокидываем env в текущую ssh-сессию
+            export ELEVEN_API_KEY="${ELEVEN_API_KEY}"
+            export ELEVEN_PROXY_SECRET="${ELEVEN_PROXY_SECRET}"
+            export PORT="${PORT}"
+
+            # перезапуск с обновлением env
+            pm2 restart proxy --update-env || pm2 start server.js --name proxy --update-env
+            pm2 save
