@@ -196,7 +196,7 @@ app.post("/eleven/tts", async (req, res) => {
     try {
       res.status(500).json({ ok: false, error: "proxy_error", message: e?.message || String(e) });
     } catch {
-      // ignore if headers already sent
+      // ignаore if headers already sent
     }
   }
 });
