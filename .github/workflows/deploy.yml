@@ -19,6 +19,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           port: ${{ secrets.SSH_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+          # 🔥 КЛЮЧЕВО: именно это прокидывает env в удалённый shell
+          envs: ELEVEN_API_KEY,ELEVEN_PROXY_SECRET,PORT
+
           script: |
             set -e
             cd /opt/proxy
@@ -27,11 +31,10 @@ jobs:
 
             npm install --omit=dev
 
-            # прокидываем env в текущую ssh-сессию
-            export ELEVEN_API_KEY="${ELEVEN_API_KEY}"
-            export ELEVEN_PROXY_SECRET="${ELEVEN_PROXY_SECRET}"
-            export PORT="${PORT}"
+            # диагностика (длины, без утечки секретов)
+            echo "ELEVEN_API_KEY len: ${#ELEVEN_API_KEY}"
+            echo "ELEVEN_PROXY_SECRET len: ${#ELEVEN_PROXY_SECRET}"
+            echo "PORT: ${PORT}"
 
-            # перезапуск с обновлением env
             pm2 restart proxy --update-env || pm2 start server.js --name proxy --update-env
             pm2 save
