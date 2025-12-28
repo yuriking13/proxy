@@ -13,6 +13,7 @@ jobs:
         env:
           ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
           ELEVEN_PROXY_SECRET: ${{ secrets.ELEVEN_PROXY_SECRET }}
+          SYNC_API_KEY: ${{ secrets.SYNC_API_KEY }}
           PORT: "8088"
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -21,7 +22,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
 
           # 🔥 КЛЮЧЕВО: именно это прокидывает env в удалённый shell
-          envs: ELEVEN_API_KEY,ELEVEN_PROXY_SECRET,PORT
+          envs: ELEVEN_API_KEY,ELEVEN_PROXY_SECRET,SYNC_API_KEY,PORT
 
           script: |
             set -e
@@ -34,6 +35,7 @@ jobs:
             # диагностика (длины, без утечки секретов)
             echo "ELEVEN_API_KEY len: ${#ELEVEN_API_KEY}"
             echo "ELEVEN_PROXY_SECRET len: ${#ELEVEN_PROXY_SECRET}"
+            echo "SYNC_API_KEY len: ${#SYNC_API_KEY}"
             echo "PORT: ${PORT}"
 
             pm2 restart proxy --update-env || pm2 start server.js --name proxy --update-env
