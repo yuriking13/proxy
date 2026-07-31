@@ -1,0 +1,90 @@
+name: amzn-pl ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['amzn-pl/**', '.github/workflows/amzn-pl-ci.yml']
+  pull_request:
+    paths: ['amzn-pl/**', '.github/workflows/amzn-pl-ci.yml']
+
+defaults:
+  run:
+    working-directory: amzn-pl
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Engine tests
+        run: node --experimental-strip-types --test engine/tests/*.test.ts
+
+      - name: Verify engine copies are in sync
+        run: |
+          diff engine/src/index.ts supabase/functions/_shared/engine/index.ts
+          diff engine/src/validate.ts supabase/functions/_shared/engine/validate.ts
+
+      # Edge Function раньше не компилировалась в CI вообще: ошибка типов
+      # обнаруживалась только при деплое.
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Typecheck Edge Functions
+        run: deno check supabase/functions/calculate/index.ts
+
+      - name: Lint Edge Functions
+        run: deno lint supabase/functions/
+
+      - name: Verify no engine code in frontend bundle
+        run: bash scripts/check-frontend-bundle.sh
+
+  # Модель защиты — основной результат работы, поэтому она проверяется
+  # исполняемым тестом, а не только чтением миграций.
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Одноразовая база в сервис-контейнере, живёт только внутри джоба и
+          # недоступна снаружи. Пароля нет намеренно: хардкод даже фиктивного
+          # пароля засоряет сканеры секретов реальными инцидентами, среди
+          # которых потом теряются настоящие.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ['5432:5432']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migrations + RLS/permission tests
+        run: bash scripts/test-db.sh
+        env:
+          PGURL: postgresql://postgres@localhost:5432/postgres
+
+  deploy-functions:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test, database]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+
+      # Миграции применяются до деплоя функции: функция уже может опираться на
+      # новые объекты схемы (grant_license, has_active_license).
+      - name: Push migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Deploy Edge Functions
+        run: supabase functions deploy calculate --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}

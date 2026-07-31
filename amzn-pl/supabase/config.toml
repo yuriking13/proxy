@@ -1,0 +1,4 @@
+# Минимальная конфигурация функций.
+# verify_jwt = true: Supabase проверяет подпись JWT до входа в функцию.
+[functions.calculate]
+verify_jwt = true
